@@ -30,7 +30,7 @@
 ## 기술 스택
 
 - **Frontend** — React 19, TypeScript, Vite 6, Tailwind CSS v4
-- **Backend** — Express.js (API 서버 + Vite 미들웨어)
+- **Backend** — Vercel 서버리스 함수 (`api/index.ts`) / 로컬 개발 시 Vite 인라인 플러그인
 - **Database** — Supabase (PostgreSQL), service_role key로 서버사이드 접근
 - **아이콘** — Lucide React
 
@@ -44,27 +44,47 @@ npm install
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
-# 3. 개발 서버 실행 (Express + Vite, 포트 3000)
-npm run dev:server
+# 3. 개발 서버 실행 (포트 5173)
+npm run dev
 ```
 
-> `npm run dev` (Vite 단독)는 API가 없어 동작하지 않습니다. 반드시 `npm run dev:server`를 사용하세요.
+> `npm run dev`만으로 Supabase API까지 동작합니다 (Vite 플러그인에 API 핸들러 내장).
+
+## Vercel 배포
+
+`vercel.json`이 포함되어 있어 GitHub 연동 후 자동 배포됩니다.
+
+**Vercel 환경변수 설정 필수** (Settings → Environment Variables):
+
+| Key | 설명 |
+|-----|------|
+| `SUPABASE_URL` | Supabase 프로젝트 URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | 서버사이드 전용 관리자 키 |
+
+환경변수 추가 후 **Redeploy** 필요.
+
+> ⚠️ 현재 Vercel 배포 시 API 500 오류 디버깅 중 (환경변수 로딩 이슈)
 
 ## 프로젝트 구조
 
 ```
+api/
+└── index.ts               # Vercel 서버리스 함수 진입점
 src/
+├── lib/
+│   └── stamp-handlers.ts  # 공유 API 핸들러 (Vercel·Vite 모두 호환)
 ├── services/
-│   └── stampService.ts   # API 클라이언트 (fetch → Express)
+│   └── stampService.ts    # API 클라이언트 (fetch → /api/*)
 ├── components/
-│   ├── Header.tsx         # 매장 로고 + 번호 변경 버튼
-│   ├── PhoneInput.tsx     # 전화번호·이름 입력 폼
-│   ├── TermsConsent.tsx   # 약관 동의 화면
-│   └── StampGrid.tsx      # 스탬프 카드 그리드
+│   ├── Header.tsx
+│   ├── PhoneInput.tsx
+│   ├── TermsConsent.tsx
+│   └── StampGrid.tsx
 ├── App.tsx                # ViewState 기반 상태 머신
-├── types.ts               # Store, StampCard, StampResult 타입
+├── types.ts
 └── index.css
-server.ts                  # Express API 서버 (Supabase 연동)
+server.ts                  # 로컬 Express 서버 (선택적 실행)
+vercel.json                # /api/* → 서버리스, /* → SPA 라우팅
 ```
 
 ## API 엔드포인트
