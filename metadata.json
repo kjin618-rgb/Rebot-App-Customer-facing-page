@@ -1,0 +1,6 @@
+{
+  "name": "Rebot",
+  "description": "카페·베이커리용 디지털 스탬프 서비스 리봇(Rebot)의 고객용 모바일 웹",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
