@@ -1,91 +1,23 @@
+import 'dotenv/config';
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import { createClient } from "@supabase/supabase-js";
 
-interface Store {
-  storeCode: string;
-  storeName: string;
-  logoUrl: string | null;
-  brandColor: string | null;
-  stampGoal: number;
-  rewardDescription: string;
+function getSupabase() {
+  return createClient(
+    process.env.SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  );
 }
 
-interface User {
-  phone: string;
-  name?: string;
-  marketingConsent: boolean;
-  registeredAt: string;
+function maskPhone(phone: string): string {
+  const c = phone.replace(/[^0-9]/g, "");
+  if (c.length === 11) return `${c.slice(0, 3)}-****-${c.slice(7)}`;
+  if (c.length === 10) return `${c.slice(0, 3)}-***-${c.slice(6)}`;
+  return phone;
 }
-
-interface StampCard {
-  phone: string;
-  storeCode: string;
-  currentStamps: number;
-  lastStampedAt: string | null;
-}
-
-// In-memory mock database
-const STORES: Record<string, Store> = {
-  "cafe-rebot": {
-    storeCode: "cafe-rebot",
-    storeName: "리봇 카페 & 베이커리",
-    logoUrl: "https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=150&h=150&fit=crop&q=80",
-    brandColor: "#15803d", // Emerald Green
-    stampGoal: 10,
-    rewardDescription: "아메리카노 1잔 무료 쿠폰",
-  },
-  "sweet-bakery": {
-    storeCode: "sweet-bakery",
-    storeName: "달콤 베이커리 본점",
-    logoUrl: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=150&h=150&fit=crop&q=80",
-    brandColor: "#b45309", // Warm Amber
-    stampGoal: 8,
-    rewardDescription: "갓 구운 소금빵 1개 무료 교환권",
-  },
-  "coffee-ground": {
-    storeCode: "coffee-ground",
-    storeName: "커피 그라운드",
-    logoUrl: null, // Test null logo
-    brandColor: "#1e293b", // Slate Charcoal
-    stampGoal: 12,
-    rewardDescription: "모든 제조 음료 1잔 무료",
-  },
-  "daily-bread": {
-    storeCode: "daily-bread",
-    storeName: "매일 브레드",
-    logoUrl: "https://images.unsplash.com/photo-1549931319-a545dcf3bc73?w=150&h=150&fit=crop&q=80",
-    brandColor: "#7c2d12", // Rich Brown
-    stampGoal: 5,
-    rewardDescription: "수제 유기농 식빵 1봉지",
-  }
-};
-
-// In-memory store tables
-const usersTable = new Map<string, User>();
-const stampCardsTable = new Map<string, StampCard>();
-
-// Preseed a test returning user for demo/testing
-// Phone: 01012345678 (registered, already has 3 stamps)
-usersTable.set("01012345678", {
-  phone: "01012345678",
-  name: "김미영",
-  marketingConsent: true,
-  registeredAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-});
-stampCardsTable.set("cafe-rebot:01012345678", {
-  phone: "01012345678",
-  storeCode: "cafe-rebot",
-  currentStamps: 3,
-  lastStampedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-});
-
-stampCardsTable.set("sweet-bakery:01012345678", {
-  phone: "01012345678",
-  storeCode: "sweet-bakery",
-  currentStamps: 7, // 1 stamp left to reward
-  lastStampedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-});
 
 async function startServer() {
   const app = express();
@@ -93,195 +25,258 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Routes
-
-  // 1. GET /api/store/[storeCode]
-  app.get("/api/store/:storeCode", (req, res) => {
+  // GET /api/store/:storeCode
+  app.get("/api/store/:storeCode", async (req, res) => {
     const { storeCode } = req.params;
-    const store = STORES[storeCode];
+    const sb = getSupabase();
 
-    if (!store) {
+    const { data } = await sb
+      .from("stores")
+      .select("store_code, store_name, stamp_goal, reward_desc")
+      .eq("store_code", storeCode)
+      .single();
+
+    if (!data) {
       return res.status(404).json({ error: "store_not_found" });
     }
 
-    res.json(store);
+    res.json({
+      storeCode: data.store_code,
+      storeName: data.store_name,
+      logoUrl: null,
+      brandColor: null,
+      stampGoal: data.stamp_goal,
+      rewardDescription: data.reward_desc,
+    });
   });
 
-  // 2. GET /api/stamp/:storeCode/user/:phone (Helper to get current state without earning)
-  app.get("/api/stamp/:storeCode/user/:phone", (req, res) => {
+  // GET /api/stamp/:storeCode/user/:phone
+  app.get("/api/stamp/:storeCode/user/:phone", async (req, res) => {
     const { storeCode, phone } = req.params;
-    const store = STORES[storeCode];
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
 
-    if (!store) {
-      return res.status(404).json({ error: "store_not_found" });
-    }
-
-    const cleanedPhone = phone.replace(/[^0-9]/g, "");
-    if (cleanedPhone.length !== 11) {
+    if (cleanPhone.length !== 11) {
       return res.status(400).json({ error: "invalid_phone" });
     }
 
-    const user = usersTable.get(cleanedPhone);
-    const cardKey = `${storeCode}:${cleanedPhone}`;
-    const card = stampCardsTable.get(cardKey);
+    const sb = getSupabase();
 
-    if (!user) {
+    const { data: store } = await sb
+      .from("stores")
+      .select("id, stamp_goal")
+      .eq("store_code", storeCode)
+      .single();
+
+    if (!store) {
+      return res.status(404).json({ error: "store_not_found" });
+    }
+
+    const { data: customer } = await sb
+      .from("customers")
+      .select("current_stamps, last_visit_at")
+      .eq("store_id", store.id)
+      .eq("phone", cleanPhone)
+      .single();
+
+    if (!customer) {
       return res.json({
         isNewCustomer: true,
         currentStamps: 0,
-        stampGoal: store.stampGoal,
+        stampGoal: store.stamp_goal,
         lastStampedAt: null,
       });
     }
 
     res.json({
       isNewCustomer: false,
-      currentStamps: card ? card.currentStamps : 0,
-      stampGoal: store.stampGoal,
-      lastStampedAt: card ? card.lastStampedAt : null,
+      currentStamps: customer.current_stamps,
+      stampGoal: store.stamp_goal,
+      lastStampedAt: customer.last_visit_at,
     });
   });
 
-  // 3. POST /api/stamp/[storeCode]
-  app.post("/api/stamp/:storeCode", (req, res) => {
+  // POST /api/stamp/:storeCode
+  app.post("/api/stamp/:storeCode", async (req, res) => {
     const { storeCode } = req.params;
-    const { phone, name, marketingConsent, forceConsent, forceNew } = req.body;
-
-    const store = STORES[storeCode];
-    if (!store) {
-      return res.status(404).json({ error: "store_not_found" });
-    }
+    const { phone, name, marketingConsent, forceConsent } = req.body;
 
     if (!phone) {
       return res.status(400).json({ error: "invalid_phone" });
     }
 
-    const cleanedPhone = phone.replace(/[^0-9]/g, "");
-    if (cleanedPhone.length !== 11) {
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    if (cleanPhone.length !== 11) {
       return res.status(400).json({ error: "invalid_phone" });
     }
 
-    const userExists = usersTable.has(cleanedPhone);
+    const sb = getSupabase();
 
-    // If the customer is new and has not agreed to terms yet (indicated by forceConsent !== true and not having user row)
-    if (!userExists && forceConsent !== true && forceNew !== false) {
+    const { data: store } = await sb
+      .from("stores")
+      .select("id, stamp_goal")
+      .eq("store_code", storeCode)
+      .single();
+
+    if (!store) {
+      return res.status(404).json({ error: "store_not_found" });
+    }
+
+    const { data: customer } = await sb
+      .from("customers")
+      .select("id, name, current_stamps, total_stamps, total_visits, last_visit_at")
+      .eq("store_id", store.id)
+      .eq("phone", cleanPhone)
+      .single();
+
+    const userExists = !!customer;
+
+    // New customer without terms consent — prompt UI to show consent screen
+    if (!userExists && forceConsent !== true) {
       return res.json({
         stampEarned: false,
         alreadyStampedToday: false,
         currentStamps: 0,
-        stampGoal: store.stampGoal,
+        stampGoal: store.stamp_goal,
         rewardTriggered: false,
         isNewCustomer: true,
       });
     }
 
-    // Now, handle registration/saving if new
-    if (!userExists) {
-      usersTable.set(cleanedPhone, {
-        phone: cleanedPhone,
-        name: name || undefined,
-        marketingConsent: !!marketingConsent,
-        registeredAt: new Date().toISOString(),
-      });
-    } else if (name) {
-      // Update name if provided
-      const existingUser = usersTable.get(cleanedPhone)!;
-      existingUser.name = name;
-      usersTable.set(cleanedPhone, existingUser);
-    }
+    const nowStr = new Date().toISOString();
 
-    const cardKey = `${storeCode}:${cleanedPhone}`;
-    let card = stampCardsTable.get(cardKey);
-
-    if (!card) {
-      card = {
-        phone: cleanedPhone,
-        storeCode,
-        currentStamps: 0,
-        lastStampedAt: null,
-      };
-      stampCardsTable.set(cardKey, card);
-    }
-
-    // Check if already stamped today
-    const now = new Date();
-    const todayStr = now.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" }); // Match South Korea date
-
-    let alreadyStampedToday = false;
-    if (card.lastStampedAt) {
-      const lastDate = new Date(card.lastStampedAt);
-      const lastDateStr = lastDate.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
-      if (todayStr === lastDateStr) {
-        alreadyStampedToday = true;
+    // Check daily stamp limit (1 per day in KST)
+    if (userExists && customer.last_visit_at) {
+      const todayKST = new Date(nowStr).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
+      const lastKST = new Date(customer.last_visit_at).toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul" });
+      if (todayKST === lastKST) {
+        return res.json({
+          stampEarned: false,
+          alreadyStampedToday: true,
+          currentStamps: customer.current_stamps,
+          stampGoal: store.stamp_goal,
+          rewardTriggered: false,
+          isNewCustomer: false,
+        });
       }
     }
 
-    if (alreadyStampedToday) {
-      return res.json({
-        stampEarned: false,
-        alreadyStampedToday: true,
-        currentStamps: card.currentStamps,
-        stampGoal: store.stampGoal,
-        rewardTriggered: false,
-        isNewCustomer: false,
-      });
+    let finalCustomerId: string;
+    let finalCurrentStamps: number;
+
+    if (!userExists) {
+      const { data: newCustomer, error } = await sb
+        .from("customers")
+        .insert({
+          store_id: store.id,
+          name: name || null,
+          phone: cleanPhone,
+          phone_masked: maskPhone(cleanPhone),
+          marketing_consent: !!marketingConsent,
+          marketing_consent_at: marketingConsent ? nowStr : null,
+          current_stamps: 1,
+          total_stamps: 1,
+          total_visits: 1,
+          last_visit_at: nowStr,
+        })
+        .select("id")
+        .single();
+
+      if (error || !newCustomer) {
+        return res.status(500).json({ error: "failed_to_create_customer" });
+      }
+
+      finalCustomerId = newCustomer.id;
+      finalCurrentStamps = 1;
+    } else {
+      const newStamps = customer.current_stamps + 1;
+      const rewardNow = newStamps >= store.stamp_goal;
+
+      await sb
+        .from("customers")
+        .update({
+          name: name || customer.name,
+          current_stamps: rewardNow ? 0 : newStamps,
+          total_stamps: customer.total_stamps + 1,
+          total_visits: customer.total_visits + 1,
+          last_visit_at: nowStr,
+        })
+        .eq("id", customer.id);
+
+      finalCustomerId = customer.id;
+      finalCurrentStamps = newStamps;
     }
 
-    // Earn stamp!
-    card.currentStamps += 1;
-    card.lastStampedAt = now.toISOString();
-    stampCardsTable.set(cardKey, card);
+    // Record visit
+    await sb.from("visit_logs").insert({
+      customer_id: finalCustomerId,
+      store_id: store.id,
+      visited_at: nowStr,
+      stamps_earned: 1,
+      source: "kiosk",
+    });
 
-    let rewardTriggered = false;
-    if (card.currentStamps >= store.stampGoal) {
-      rewardTriggered = true;
-      // Reset card stamps after triggering reward (starts next card)
-      card.currentStamps = 0;
-      stampCardsTable.set(cardKey, card);
-    }
+    const rewardTriggered = finalCurrentStamps >= store.stamp_goal;
 
     res.json({
       stampEarned: true,
       alreadyStampedToday: false,
-      currentStamps: rewardTriggered ? store.stampGoal : card.currentStamps, // UI can celebrate goal
-      stampGoal: store.stampGoal,
+      currentStamps: rewardTriggered ? store.stamp_goal : finalCurrentStamps,
+      stampGoal: store.stamp_goal,
       rewardTriggered,
-      isNewCustomer: false,
+      isNewCustomer: !userExists,
     });
   });
 
-  // 4. API to reset user state (For testing purposes)
-  app.post("/api/test/reset", (req, res) => {
-    const { phone, storeCode, action } = req.body;
-    const cleanedPhone = phone ? phone.replace(/[^0-9]/g, "") : "";
+  // POST /api/test/reset (dev testing only)
+  app.post("/api/test/reset", async (req, res) => {
+    const { phone, storeCode, action, stamps } = req.body;
+    const cleanPhone = phone ? phone.replace(/[^0-9]/g, "") : "";
 
-    if (!cleanedPhone) {
+    if (!cleanPhone) {
       return res.status(400).json({ error: "Phone number required" });
     }
 
-    const cardKey = `${storeCode}:${cleanedPhone}`;
+    const sb = getSupabase();
+
+    const { data: store } = await sb
+      .from("stores")
+      .select("id, stamp_goal")
+      .eq("store_code", storeCode)
+      .single();
+
+    if (!store) {
+      return res.status(404).json({ error: "store_not_found" });
+    }
+
+    const { data: customer } = await sb
+      .from("customers")
+      .select("id")
+      .eq("store_id", store.id)
+      .eq("phone", cleanPhone)
+      .single();
 
     if (action === "reset-all") {
-      usersTable.delete(cleanedPhone);
-      stampCardsTable.delete(cardKey);
+      if (customer) {
+        await sb.from("customers").delete().eq("id", customer.id);
+      }
     } else if (action === "reset-today") {
-      const card = stampCardsTable.get(cardKey);
-      if (card) {
-        card.lastStampedAt = null;
-        stampCardsTable.set(cardKey, card);
+      if (customer) {
+        await sb.from("customers").update({ last_visit_at: null }).eq("id", customer.id);
       }
     } else if (action === "set-stamps") {
-      const { stamps } = req.body;
-      const card = stampCardsTable.get(cardKey);
-      if (card) {
-        card.currentStamps = Number(stamps);
-        stampCardsTable.set(cardKey, card);
+      const targetStamps = Number(stamps);
+      if (customer) {
+        await sb.from("customers").update({ current_stamps: targetStamps }).eq("id", customer.id);
       } else {
-        stampCardsTable.set(cardKey, {
-          phone: cleanedPhone,
-          storeCode,
-          currentStamps: Number(stamps),
-          lastStampedAt: null,
+        await sb.from("customers").insert({
+          store_id: store.id,
+          phone: cleanPhone,
+          phone_masked: maskPhone(cleanPhone),
+          marketing_consent: false,
+          current_stamps: targetStamps,
+          total_stamps: targetStamps,
+          total_visits: 0,
+          last_visit_at: null,
         });
       }
     }
@@ -289,7 +284,7 @@ async function startServer() {
     res.json({ success: true });
   });
 
-  // Serve static assets or integrate Vite in dev mode
+  // Dev: Vite dev server as middleware / Prod: serve dist
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
