@@ -18,7 +18,8 @@ import {
   BookOpen,
   Info
 } from "lucide-react";
-import { Store, ViewState, StampResult } from "./types";
+import { Store, ViewState } from "./types";
+import { getStore, getUserStamps, earnStamp, testReset } from "./services/stampService";
 import { Header } from "./components/Header";
 import { PhoneInput } from "./components/PhoneInput";
 import { TermsConsent } from "./components/TermsConsent";
@@ -85,9 +86,6 @@ export default function App() {
   // Sync / Load Store Information
   const loadStoreDetails = async (codeToLoad = storeCode) => {
     setViewState("loading");
-    
-    // Simulate real delay for visual skeleton quality
-    await new Promise((resolve) => setTimeout(resolve, 600));
 
     if (offlineMode) {
       setViewState("network_error");
@@ -95,33 +93,25 @@ export default function App() {
     }
 
     try {
-      const response = await fetch(`/api/store/${codeToLoad}`);
-      if (!response.ok) {
-        if (response.status === 404) {
-          setViewState("invalid_store");
-          setStore(null);
-        } else {
-          setViewState("network_error");
-        }
+      const data = await getStore(codeToLoad);
+      if (!data) {
+        setViewState("invalid_store");
+        setStore(null);
         return;
       }
-      
-      const data: Store = await response.json();
+
       setStore(data);
       setStampGoal(data.stampGoal);
       setRewardDescription(data.rewardDescription);
 
-      // Check if we have pre-saved phone in localStorage
       const saved = localStorage.getItem("rebot_phone");
       const savedName = localStorage.getItem("rebot_name") || "";
-      
+
       if (saved && saved.length === 11) {
         setPhone(saved);
         setName(savedName);
-        // We have a stored user! Let's fetch their current stamps from the DB to skip re-asking
         await fetchUserStamps(codeToLoad, saved);
       } else {
-        // Unidentified customer -> go to input screen
         setViewState("input_phone");
       }
     } catch (err) {
@@ -138,15 +128,9 @@ export default function App() {
   const fetchUserStamps = async (sCode: string, pNumber: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/stamp/${sCode}/user/${pNumber}`);
-      if (!response.ok) {
-        setViewState("input_phone");
-        return;
-      }
-      const data = await response.json();
-      
+      const data = await getUserStamps(sCode, pNumber);
+
       if (data.isNewCustomer) {
-        // Phone is in localStorage but no database record (might have been cleared or new)
         setViewState("terms_consent");
       } else {
         setCurrentStamps(data.currentStamps);
@@ -174,22 +158,11 @@ export default function App() {
     }
 
     try {
-      // Call with forceNew=false to query if they are new or returned
-      const response = await fetch(`/api/stamp/${storeCode}/user/${enteredPhone}`);
-      
-      if (!response.ok) {
-        setViewState("network_error");
-        return;
-      }
+      const data = await getUserStamps(storeCode, enteredPhone);
 
-      const data = await response.json();
-      
       if (data.isNewCustomer) {
-        // Go to consent screen first
         setViewState("terms_consent");
       } else {
-        // Returned user! We can proceed to earn a stamp immediately or show card!
-        // As per the Core flow: "스탬프 적립을 요청하면 서버가 즉시 처리한다"
         await handleEarnStamp(enteredPhone, enteredName, true);
       }
     } catch (err) {
@@ -201,12 +174,12 @@ export default function App() {
 
   // Handle actual stamp earning with Consent variables
   const handleEarnStamp = async (
-    targetPhone: string, 
-    targetName: string, 
+    targetPhone: string,
+    targetName: string,
     isMarketingConsent: boolean
   ) => {
     setIsLoading(true);
-    
+
     if (offlineMode) {
       setViewState("network_error");
       setIsLoading(false);
@@ -214,25 +187,8 @@ export default function App() {
     }
 
     try {
-      const response = await fetch(`/api/stamp/${storeCode}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          phone: targetPhone,
-          name: targetName,
-          marketingConsent: isMarketingConsent,
-          forceConsent: true, // bypass the 'isNew' block
-        }),
-      });
+      const result = await earnStamp(storeCode, targetPhone, targetName, isMarketingConsent, true);
 
-      if (!response.ok) {
-        setViewState("network_error");
-        return;
-      }
-
-      const result: StampResult = await response.json();
-
-      // Save credentials in client storage
       localStorage.setItem("rebot_phone", targetPhone);
       localStorage.setItem("rebot_name", targetName);
 
@@ -248,7 +204,6 @@ export default function App() {
       } else {
         setViewState("stamps_view");
         setNewStampAdded(true);
-        // Reset the bounce animation after 3 seconds
         setTimeout(() => {
           setNewStampAdded(false);
         }, 3000);
@@ -288,11 +243,7 @@ export default function App() {
       return;
     }
     try {
-      await fetch("/api/test/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, storeCode, action: "reset-all" }),
-      });
+      await testReset(phone, storeCode, "reset-all");
       handleResetPhone();
     } catch (e) {
       console.error(e);
@@ -302,11 +253,7 @@ export default function App() {
   const simulateResetTodayLimit = async () => {
     if (!phone) return;
     try {
-      await fetch("/api/test/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, storeCode, action: "reset-today" }),
-      });
+      await testReset(phone, storeCode, "reset-today");
       alert("오늘 적립 이력이 리셋되었습니다! 이제 다시 적립할 수 있습니다.");
       fetchUserStamps(storeCode, phone);
     } catch (e) {
@@ -320,11 +267,7 @@ export default function App() {
       return;
     }
     try {
-      await fetch("/api/test/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, storeCode, action: "set-stamps", stamps: stampsNum }),
-      });
+      await testReset(phone, storeCode, "set-stamps", stampsNum);
       alert(`스탬프를 ${stampsNum}개로 강제 조정했습니다!`);
       fetchUserStamps(storeCode, phone);
     } catch (e) {
