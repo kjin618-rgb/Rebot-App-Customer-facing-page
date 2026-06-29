@@ -2,11 +2,10 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { createClient } from '@supabase/supabase-js';
 
 function getSupabase() {
-  return createClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error(`Missing env: SUPABASE_URL=${url ? 'ok' : 'MISSING'}, KEY=${key ? 'ok' : 'MISSING'}`);
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 function send(res: ServerResponse, statusCode: number, data: unknown) {
