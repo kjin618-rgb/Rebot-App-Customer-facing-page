@@ -63,7 +63,13 @@ npm run dev
 
 환경변수 추가 후 **Redeploy** 필요.
 
-> ⚠️ 현재 Vercel 배포 시 API 500 오류 디버깅 중 (환경변수 로딩 이슈)
+> **Vercel 서버리스 함수 주의사항**: `api/` 내에서 `src/` 파일을 import할 때 반드시 `.js` 확장자를 명시해야 합니다. `@vercel/node`는 esbuild 번들링 없이 tsc + nft 방식으로 컴파일하므로, ESM 런타임에서 확장자 없는 경로는 `ERR_MODULE_NOT_FOUND`를 발생시킵니다.
+> ```ts
+> // ✅ 올바른 예
+> import { handleApiRequest } from '../src/lib/stamp-handlers.js';
+> // ❌ 런타임 오류
+> import { handleApiRequest } from '../src/lib/stamp-handlers';
+> ```
 
 ## 프로젝트 구조
 
