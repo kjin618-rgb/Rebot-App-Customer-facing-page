@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
-import { handleApiRequest } from '../src/lib/stamp-handlers';
+import { handleApiRequest } from '../src/lib/stamp-handlers.js';
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   try {
