@@ -60,7 +60,7 @@ export default function App() {
   
   // Quick test bar parameters
   const [testStampTarget, setTestStampTarget] = useState<number>(9);
-  const [showTesterPanel, setShowTesterPanel] = useState<boolean>(true);
+  const [showTesterPanel, setShowTesterPanel] = useState<boolean>(import.meta.env.DEV);
 
   // Parse store code from URL hash or search params or fallback to cafe-rebot
   useEffect(() => {
@@ -280,7 +280,8 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#E5E2DA] flex flex-col md:flex-row items-stretch text-[#3E2723] font-sans antialiased overflow-x-hidden selection:bg-[#4A6741]/20">
       
-      {/* 1. Left side control/tester suite - Only visible in desktop mode or toggled */}
+      {/* 1. Left side control/tester suite - dev 환경에서만 렌더링 (프로덕션 노출 차단) */}
+      {import.meta.env.DEV && (
       <div className={`w-full md:w-[350px] bg-stone-900 text-stone-100 p-6 flex flex-col justify-between border-b md:border-b-0 md:border-r border-stone-800 transition-all duration-300 ${showTesterPanel ? "block" : "hidden"}`}>
         <div className="space-y-6">
           <div className="flex items-center justify-between">
@@ -400,12 +401,13 @@ export default function App() {
           <p>QR 코드 스캔 시나리오를 자유롭게 변경하고 즉각 피드백을 확인해 보세요.</p>
         </div>
       </div>
+      )}
 
       {/* 2. Main Mobile Preview Container */}
       <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 relative min-h-screen">
         
-        {/* Floating Tester toggle - Only when hidden */}
-        {!showTesterPanel && (
+        {/* Floating Tester toggle - dev 환경에서만, 패널이 숨겨졌을 때 */}
+        {import.meta.env.DEV && !showTesterPanel && (
           <button 
             onClick={() => setShowTesterPanel(true)}
             className="absolute top-4 left-4 bg-stone-900 hover:bg-stone-800 text-white rounded-full px-4 py-2 text-xs font-bold shadow-lg flex items-center gap-1.5 cursor-pointer z-50 transition-all hover:scale-105"
