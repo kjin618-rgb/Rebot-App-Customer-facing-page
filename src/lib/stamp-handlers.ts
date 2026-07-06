@@ -171,8 +171,12 @@ export async function handleApiRequest(req: IncomingMessage, res: ServerResponse
     return true;
   }
 
-  // POST /api/test/reset
+  // POST /api/test/reset (로컬 개발 전용 — Vercel 환경(Preview/Production)에서는 차단)
   if (url === '/api/test/reset' && method === 'POST') {
+    if (process.env.VERCEL) {
+      send(res, 404, { error: 'not_found' });
+      return true;
+    }
     const { phone, storeCode, action, stamps } = await parseBody(req);
     const cleanPhone = phone ? phone.replace(/[^0-9]/g, '') : '';
     if (!cleanPhone) { send(res, 400, { error: 'Phone number required' }); return true; }
