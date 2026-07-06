@@ -227,8 +227,11 @@ async function startServer() {
     });
   });
 
-  // POST /api/test/reset (dev testing only)
+  // POST /api/test/reset (dev testing only — production 환경에서는 차단)
   app.post("/api/test/reset", async (req, res) => {
+    if (process.env.NODE_ENV === "production") {
+      return res.status(404).json({ error: "not_found" });
+    }
     const { phone, storeCode, action, stamps } = req.body;
     const cleanPhone = phone ? phone.replace(/[^0-9]/g, "") : "";
 
