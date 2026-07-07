@@ -8,7 +8,6 @@ interface TermsConsentProps {
   name?: string;
   onSubmit: (marketingConsent: boolean) => void;
   isLoading: boolean;
-  onBack: () => void;
 }
 
 export const TermsConsent: React.FC<TermsConsentProps> = ({
@@ -16,7 +15,6 @@ export const TermsConsent: React.FC<TermsConsentProps> = ({
   phone,
   onSubmit,
   isLoading,
-  onBack,
 }) => {
   const [requiredAgreed, setRequiredAgreed] = useState(false);
   const [marketingAgreed, setMarketingAgreed] = useState(false);
@@ -207,15 +205,6 @@ export const TermsConsent: React.FC<TermsConsentProps> = ({
           ) : (
             "동의하고 스탬프 적립하기"
           )}
-        </button>
-
-        <button
-          onClick={onBack}
-          disabled={isLoading}
-          className="w-full text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 font-bold py-3.5 rounded-2xl transition-colors cursor-pointer text-sm"
-          id="terms-back-btn"
-        >
-          전화번호 입력으로 돌아가기
         </button>
       </div>
 
