@@ -71,7 +71,7 @@ export const StampsScreen: React.FC<StampsScreenProps> = ({
           <div className="text-center pt-2">
             <p className="text-[10px] text-[#8D7B73] font-medium inline-flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              마지막 적립: {new Date(lastStampedAt).toLocaleString("ko-KR")}
+              마지막 적립: {new Date(lastStampedAt).toLocaleDateString("ko-KR")}
             </p>
           </div>
         )}
@@ -90,7 +90,8 @@ export const StampsScreen: React.FC<StampsScreenProps> = ({
 
         <button
           onClick={onResetPhone}
-          className="w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-800 font-bold rounded-2xl transition-all cursor-pointer text-sm"
+          className="w-full py-3.5 text-white font-bold rounded-2xl shadow-lg hover:brightness-105 active:scale-95 transition-all cursor-pointer text-sm"
+          style={{ backgroundColor: activeColor }}
           id="back-to-scan-btn"
         >
           확인 완료 (메인으로)
