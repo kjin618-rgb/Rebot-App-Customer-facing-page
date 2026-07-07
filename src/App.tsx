@@ -341,7 +341,6 @@ export default function App() {
                 name={name}
                 onSubmit={(marketingAgreed) => handleEarnStamp(phone, name, marketingAgreed)}
                 isLoading={isLoading}
-                onBack={handleBackToPhoneInput}
               />
             )}
 

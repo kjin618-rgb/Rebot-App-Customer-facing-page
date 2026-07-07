@@ -49,13 +49,14 @@ export const AlreadyStampedScreen: React.FC<AlreadyStampedScreenProps> = ({
           currentStamps={currentStamps}
           stampGoal={stampGoal}
           newStampAdded={false}
+          lastStampedAt={lastStampedAt}
         />
 
         {lastStampedAt && (
           <div className="text-center pt-2">
             <p className="text-[10px] text-[#8D7B73] font-medium inline-flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              오늘 적립 시각: {new Date(lastStampedAt).toLocaleString("ko-KR")}
+              오늘 적립 시각: {new Date(lastStampedAt).toLocaleDateString("ko-KR")}
             </p>
           </div>
         )}
