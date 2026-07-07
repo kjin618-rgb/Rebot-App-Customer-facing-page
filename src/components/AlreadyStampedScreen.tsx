@@ -49,6 +49,7 @@ export const AlreadyStampedScreen: React.FC<AlreadyStampedScreenProps> = ({
           currentStamps={currentStamps}
           stampGoal={stampGoal}
           newStampAdded={false}
+          lastStampedAt={lastStampedAt}
         />
 
         {lastStampedAt && (

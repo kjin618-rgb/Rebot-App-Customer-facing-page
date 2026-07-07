@@ -64,6 +64,7 @@ export const StampsScreen: React.FC<StampsScreenProps> = ({
           currentStamps={currentStamps}
           stampGoal={stampGoal}
           newStampAdded={newStampAdded}
+          lastStampedAt={lastStampedAt}
         />
 
         {/* Timestamp indicator */}
