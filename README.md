@@ -82,10 +82,18 @@ src/
 ├── services/
 │   └── stampService.ts    # API 클라이언트 (fetch → /api/*)
 ├── components/
-│   ├── Header.tsx
-│   ├── PhoneInput.tsx
-│   ├── TermsConsent.tsx
-│   └── StampGrid.tsx
+│   ├── Header.tsx              # 상단 매장 정보 바
+│   ├── PhoneInput.tsx          # 전화번호 입력 화면
+│   ├── TermsConsent.tsx        # 신규 고객 약관 동의 화면
+│   ├── LoadingScreen.tsx       # 로딩 스켈레톤
+│   ├── InvalidStoreScreen.tsx  # 잘못된 매장 코드 화면
+│   ├── NetworkErrorScreen.tsx  # 네트워크 오류 화면
+│   ├── StampsScreen.tsx        # 스탬프 카드 화면 (적립 성공)
+│   ├── AlreadyStampedScreen.tsx # 오늘 이미 적립한 화면
+│   ├── RewardSuccessScreen.tsx # 리워드 달성 축하 화면
+│   ├── StampGrid.tsx           # 스탬프 도장 그리드 (공용)
+│   ├── ConfettiOverlay.tsx     # 색종이 축하 연출 (공용)
+│   └── DevToolsPanel.tsx       # 테스터 관리자 패널 (dev 환경 전용)
 ├── App.tsx                # ViewState 기반 상태 머신
 ├── types.ts
 └── index.css
